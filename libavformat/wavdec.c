@@ -327,6 +327,7 @@ static const AVMetadataConv wav_metadata_conv[] = {
 /* wav input */
 static int wav_read_header(AVFormatContext *s)
 {
+
     int64_t size, av_uninit(data_size);
     int64_t sample_count = 0;
     int rf64 = 0;
@@ -621,8 +622,19 @@ static int64_t find_guid(AVIOContext *pb, const uint8_t guid1[16])
 
 #define MAX_SIZE 4096
 
+static int accessed = 0;
+
 static int wav_read_packet(AVFormatContext *s, AVPacket *pkt)
 {
+
+  if (accessed == 0){
+    accessed = -1;
+
+   av_log(NULL, AV_LOG_INFO, "*** CS 3505 Spring 2019:  Running code in wav_read_packet in ffmpeg/libavformat/wavdec.c ***\n");
+
+  av_log(NULL, AV_LOG_INFO, "*** CS 3505 Spring 2019:  Changed by Thomas Ady and Pranav Rajan ***\n");
+
+  }
     int ret, size;
     int64_t left;
     AVStream *st;

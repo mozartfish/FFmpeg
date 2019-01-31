@@ -127,6 +127,8 @@ static void gif_copy_img_rect(const uint32_t *src, uint32_t *dst,
     }
 }
 
+static int accessed = 0; // boolean that tells whether a gif image file has been loaded
+
 static int gif_read_image(GifState *s, AVFrame *frame)
 {
     int left, top, width, height, bits_per_pixel, code_size, flags, pw;
@@ -134,6 +136,14 @@ static int gif_read_image(GifState *s, AVFrame *frame)
     uint32_t *ptr, *pal, *px, *pr, *ptr1;
     int ret;
     uint8_t *idx;
+
+    if (accessed == 0) {
+       accessed = -1;
+       av_log(NULL, AV_LOG_INFO, "*** CS 3505 Spring 2019:  Running code in gif_read_image in ffmpeg/libavcodec/gifdec.c ***\n");
+
+       av_log(NULL, AV_LOG_INFO, "*** CS 3505 Spring 2019:  Changed by Thomas Ady and Pranav Rajan ***\n");
+
+    }
 
     /* At least 9 bytes of Image Descriptor. */
     if (bytestream2_get_bytes_left(&s->gb) < 9)
