@@ -1,0 +1,8 @@
+This is a list of notes containing the stuff we learned about FFmpeg while working on this project.
+
+Day 1 January 26, 2019
+
+-The gmp.c file is located in the libavcodec
+-The gifdec.c file is located in the libavcodec
+-The wavdec.c file is located in the libavformat
+-To print stuff that are non error messages use av_log(NULL, AV_LOG_INFO, "the message");
