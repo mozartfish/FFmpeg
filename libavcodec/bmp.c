@@ -27,7 +27,8 @@
 #include "internal.h"
 #include "msrledec.h"
 
-static int accessed = 0; // boolean that tells whether a BMP file has been loaded
+static int accessed = 0; // boolean that tells whether a BMP image file has been loaded
+
 static int bmp_decode_frame(AVCodecContext *avctx,
                             void *data, int *got_frame,
                             AVPacket *avpkt)
@@ -48,13 +49,12 @@ static int bmp_decode_frame(AVCodecContext *avctx,
     const uint8_t *buf0 = buf;
     GetByteContext gb;
 
-    if(accessed == 0)
-    {
-       accessed = -1;
+    if (accessed == 0) {
+      accessed = -1;
       av_log(NULL, AV_LOG_INFO, "*** CS 3505 Spring 2019:  Running code in bmp_decode_frame in ffmpeg/libavcodec/bmp.c ***\n");
 
       av_log(NULL, AV_LOG_INFO, "*** CS 3505 Spring 2019:  Changed by Thomas Ady and Pranav Rajan ***\n");
-      
+
     }
 
     if (buf_size < 14) {
