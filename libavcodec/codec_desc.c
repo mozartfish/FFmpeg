@@ -953,6 +953,13 @@ static const AVCodecDescriptor codec_descriptors[] = {
         .long_name = NULL_IF_CONFIG_SMALL("Electronic Arts Madcow Video"),
         .props     = AV_CODEC_PROP_LOSSY,
     },
+    { /* COOL description */
+        .id        = AV_CODEC_ID_COOL,
+        .type      = AVMEDIA_TYPE_VIDEO,
+        .name      = "cool",
+        .long_name = NULL_IF_CONFIG_SMALL("COOL image (CS 3505 Spring 2019)"),
+        .props     = AV_CODEC_PROP_LOSSY,
+    },
     {
         .id        = AV_CODEC_ID_FRWU,
         .type      = AVMEDIA_TYPE_VIDEO,
