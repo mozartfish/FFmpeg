@@ -6,3 +6,8 @@ Day 1 January 26, 2019
 -The gifdec.c file is located in the libavcodec
 -The wavdec.c file is located in the libavformat
 -To print stuff that are non error messages use av_log(NULL, AV_LOG_INFO, "the message");
+
+Day 2 February 16, 2019
+-Completed the get started requirements for FFMPEG Part 2
+-Set up the framework for our .cool class and header file
+-Explored compression algorithms such as LZW etc.
