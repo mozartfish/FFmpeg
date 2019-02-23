@@ -27,7 +27,6 @@ static int cool_encode_frame(AVCodecContext *avctx, AVPacket *pkt,
     const AVFrame * const p = pict;
     int n_bytes_image, n_bytes_per_row, n_bytes, i, n, hsize, ret;
     const uint32_t *pal = NULL;
-    // uint32_t palette256[256];
     int pad_bytes_per_row, pal_entries = 0, compression = COOL_RGB;
     int bit_count = avctx->bits_per_coded_sample;
     uint8_t *ptr, *buf;
@@ -39,9 +38,9 @@ FF_DISABLE_DEPRECATION_WARNINGS
 FF_ENABLE_DEPRECATION_WARNINGS
 #endif
 
-        compression = COOL_BITFIELDS;
-        pal = rgb565_masks; // abuse pal to hold color masks
-        pal_entries = 3;
+  compression = COOL_BITFIELDS;
+  pal = rgb565_masks; // abuse pal to hold color masks
+  pal_entries = 3;
    
     if (pal && !pal_entries) pal_entries = 1 << bit_count;
     n_bytes_per_row = ((int64_t)avctx->width * (int64_t)bit_count + 7LL) >> 3LL;
@@ -50,7 +49,7 @@ FF_ENABLE_DEPRECATION_WARNINGS
 
     // Cool file header encoding
 #define SIZE_COOLFILEHEADER 10
-#define SIZE_COOLINFOHEADER 36
+#define SIZE_COOLINFOHEADER 20
     hsize = SIZE_COOLFILEHEADER + SIZE_COOLINFOHEADER + (pal_entries << 2);
     n_bytes = n_bytes_image + hsize;
     if ((ret = ff_alloc_packet2(avctx, pkt, n_bytes, 0)) < 0)
@@ -66,10 +65,10 @@ FF_ENABLE_DEPRECATION_WARNINGS
     bytestream_put_le16(&buf, 1);                     // Color planes 
     bytestream_put_le16(&buf, bit_count);             // Bits per pixel
     bytestream_put_le32(&buf, compression);           // Pixel array compression
-    bytestream_put_le32(&buf, n_bytes_image);         // SIZE OF RAW COLOR DATA
-    bytestream_put_le32(&buf, 0);                     // PRINT RESOLUTION X
+    //bytestream_put_le32(&buf, n_bytes_image);         // SIZE OF RAW COLOR DATA
+    /*  bytestream_put_le32(&buf, 0);                     // PRINT RESOLUTION X
     bytestream_put_le32(&buf, 0);                     // PRINT RESOLUTION Y
-    bytestream_put_le32(&buf, 0);                     // NUMBER OF COLORS IN PALETTE
+    bytestream_put_le32(&buf, 0);                     // NUMBER OF COLORS IN PALETTE */
 
     for (i = 0; i < pal_entries; i++)
         bytestream_put_le32(&buf, pal[i] & 0xFFFFFF);

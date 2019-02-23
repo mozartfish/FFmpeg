@@ -25,8 +25,6 @@ static int cool_decode_frame(AVCodecContext *avctx,
     BiCompression comp;
     unsigned int ihsize;
     int i, j, n, linesize, ret;
-    uint32_t rgb[3] = {0};
-    uint32_t alpha = 0;
     uint8_t *ptr;
     int dsize;
     const uint8_t *buf0 = buf;
@@ -36,6 +34,10 @@ static int cool_decode_frame(AVCodecContext *avctx,
         av_log(avctx, AV_LOG_ERROR, "buf size too small (%d)\n", buf_size);
         return AVERROR_INVALIDDATA;
     }
+
+
+    /* Start header read */
+
 
     if (bytestream_get_byte(&buf) != 'C' ||
         bytestream_get_byte(&buf) != 'O') {
@@ -89,12 +91,7 @@ static int cool_decode_frame(AVCodecContext *avctx,
         return AVERROR_INVALIDDATA;
     }
 
-    if (comp == COOL_BITFIELDS) {
-        buf += 16;
-        rgb[0] = bytestream_get_le32(&buf);
-        rgb[1] = bytestream_get_le32(&buf);
-        rgb[2] = bytestream_get_le32(&buf);
-    }
+    /* End header read */
 
     ret = ff_set_dimensions(avctx, width, height > 0 ? height : -(unsigned)height);
     if (ret < 0) {
@@ -109,8 +106,8 @@ static int cool_decode_frame(AVCodecContext *avctx,
     p->pict_type = AV_PICTURE_TYPE_I;
     p->key_frame = 1;
 
-    buf   = buf0 + hsize;
-    dsize = buf_size - hsize;
+    buf   = buf0 + hsize; /* Move buffer to just beyond the header */
+    dsize = buf_size - hsize; /* data size */
 
     /* Line size in file multiple of 4 */
     n = ((avctx->width * depth + 31) / 8) & ~3;
