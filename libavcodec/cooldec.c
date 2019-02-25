@@ -53,7 +53,7 @@ static int cool_decode_frame(AVCodecContext *avctx,
     }
 
     hsize  = bytestream_get_le32(&buf); /* header size */
-    ihsize = bytestream_get_le32(&buf); /* more header size */
+    ihsize = bytestream_get_le32(&buf); /* info header size */
     if (ihsize + 14LL > hsize) {
         av_log(avctx, AV_LOG_ERROR, "invalid header size %u\n", hsize);
         return AVERROR_INVALIDDATA;
@@ -93,6 +93,7 @@ static int cool_decode_frame(AVCodecContext *avctx,
 
     /* End header read */
 
+    /* Set dimensions for image */
     ret = ff_set_dimensions(avctx, width, height > 0 ? height : -(unsigned)height);
     if (ret < 0) {
         av_log(avctx, AV_LOG_ERROR, "Failed to set dimensions %d %d\n", width, height);
@@ -110,9 +111,10 @@ static int cool_decode_frame(AVCodecContext *avctx,
     dsize = buf_size - hsize; /* data size */
 
     /* Line size in file multiple of 4 */
-    n = ((avctx->width * depth + 31) / 8) & ~3;
+    //  n = ((avctx->width * depth + 31) / 8) & ~3;
 
-    if (n * avctx->height > dsize && comp != COOL_RLE4 && comp != COOL_RLE8) {
+
+    /* if (n * avctx->height > dsize && comp != COOL_RLE4 && comp != COOL_RLE8) {
         n = (avctx->width * depth + 7) / 8;
         if (n * avctx->height > dsize) {
             av_log(avctx, AV_LOG_ERROR, "not enough data (%d < %d)\n",
@@ -120,11 +122,7 @@ static int cool_decode_frame(AVCodecContext *avctx,
             return AVERROR_INVALIDDATA;
         }
         av_log(avctx, AV_LOG_ERROR, "data size too small, assuming missing line alignment\n");
-    }
-
-    // RLE may skip decoding some picture areas, so blank picture before decoding
-    if (comp == COOL_RLE4 || comp == COOL_RLE8)
-        memset(p->data[0], 0, avctx->height * p->linesize[0]);
+	} */
 
     if (height > 0) {
         ptr      = p->data[0] + (avctx->height - 1) * p->linesize[0];
@@ -134,32 +132,35 @@ static int cool_decode_frame(AVCodecContext *avctx,
         linesize = p->linesize[0];
     }
 
-    if (comp == COOL_RLE4 || comp == COOL_RLE8) {
-        if (comp == COOL_RLE8 && height < 0) {
-            p->data[0]    +=  p->linesize[0] * (avctx->height - 1);
-            p->linesize[0] = -p->linesize[0];
-        }
-        bytestream2_init(&gb, buf, dsize);
-        ff_msrle_decode(avctx, p, depth, &gb);
-        if (height < 0) {
-            p->data[0]    +=  p->linesize[0] * (avctx->height - 1);
-            p->linesize[0] = -p->linesize[0];
-        }
-    } else {
-        
+    
+    av_log(NULL, AV_LOG_INFO, "Hello above build");
         
             for (i = 0; i < avctx->height; i++) {
-                const uint16_t *src = (const uint16_t *) buf;
+                uint16_t src = bytestream_get_le16(&buf);
                 uint16_t *dst       = (uint16_t *) ptr;
+		uint64_t bytes_read = 2;
 
-                for (j = 0; j < avctx->width; j++)
-                    *dst++ = av_le2ne16(*src++);
+                while(src != 0x0000) {
 
-                buf += n;
+		  uint16_t rgb = (src & 0xF000) + ((src & 0x0F00) >> 1) + ((src & 0x00F0) >> 2);
+		  
+
+		  for (uint16_t pix_rep = (src & 0x000F); pix_rep > 0; pix_rep--)
+		    {
+		      av_log(NULL, AV_LOG_INFO, "Hello in loop \n");
+                    *dst++ = av_le2ne16(rgb);
+		    }
+
+		  src = bytestream_get_le16(&buf);
+		  bytes_read += 2;
+		}
+		if (bytes_read % 4 != 0)
+		  bytestream_get_le16(&buf);
+		// buf += ((pix_count_line * depth + 31) / 8) & ~3;
                 ptr += linesize;
             }
             
-    }
+    
 
     *got_frame = 1;
 

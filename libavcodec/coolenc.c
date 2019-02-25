@@ -55,7 +55,7 @@ FF_ENABLE_DEPRECATION_WARNINGS
 	  
 	  // Single repeated pixel
 	  int pix_rep = 1;
-	  while (pix_rep < 16 && n < avctx->width - 1 && (src[n] & 0xF79E) == (src[n + 1] & 0xF79E)) {
+	  while (pix_rep < 15 && n < avctx->width - 1 && (src[n] & 0xF79E) == (src[n + 1] & 0xF79E)) {
 	    n++;
 	    pix_rep++;
 	  }
@@ -110,18 +110,19 @@ FF_ENABLE_DEPRECATION_WARNINGS
 	{
 	  line_bytes += 2; //2 Bytes per color
 
-	  int pix_rep = 1;
-	   while (pix_rep < 16 && n < avctx->width - 1 && (src[n] & 0xF79E) == (src[n + 1] & 0xF79E)) {
+	  uint16_t pix_rep = 1;
+	   while (pix_rep < 15 && n < avctx->width - 1 && (src[n] & 0xF79E) == (src[n + 1] & 0xF79E)) {
 	     n++;
 	     pix_rep++;
+	     if (pix_rep >= 10)
 	    av_log(NULL, AV_LOG_INFO, "Copy pixel hit\n");
 	  }
 
 	   uint16_t data = 0x0000;
 	   data += (src[n] & 0xF000); //4 bit Red
-	   data += (src[n] & 0x780) << 1; //4 bit green
+	   data += (src[n] & 0x0780) << 1; //4 bit green
 	   data += (src[n] & 0x001E) << 3; //4 bit blue
-	   data += pix_rep;                // 4 bit repeat pixel
+	   data += (pix_rep & 0x000F);                // 4 bit repeat pixel
 	  bytestream_put_le16(&buf, data );
 	}
       // Append 3 bytes of 0 to signify end of line
