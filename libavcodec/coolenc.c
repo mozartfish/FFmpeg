@@ -25,7 +25,7 @@ static int cool_encode_frame(AVCodecContext *avctx, AVPacket *pkt,
                             const AVFrame *pict, int *got_packet)
 {
     const AVFrame * const p = pict;
-    int n_bytes_image, n_bytes_per_row, n_bytes, i, n, hsize, ret;
+    int n_bytes_image, n_bytes, i, n, hsize, ret;
     const uint32_t *pal = rgb565_masks;
     int pad_bytes_per_row, pal_entries = 3, compression = COOL_BITFIELDS;
     int bit_count = avctx->bits_per_coded_sample;
@@ -37,10 +37,39 @@ FF_DISABLE_DEPRECATION_WARNINGS
     avctx->coded_frame->key_frame = 1;
 FF_ENABLE_DEPRECATION_WARNINGS
 #endif
-   
-    n_bytes_per_row = ((int64_t)avctx->width * (int64_t)bit_count + 7LL) >> 3LL;
-    pad_bytes_per_row = (4 - n_bytes_per_row) & 3;
-    n_bytes_image = avctx->height * (n_bytes_per_row + pad_bytes_per_row);
+  
+
+ // BMP files are bottom-to-top so we start from the end...
+    // Grab FIRST DATA IN P for the LAST ROW IN IMAGE, shift BUFFER to just beyond header
+    ptr = p->data[0] + (avctx->height - 1) * p->linesize[0];
+    n_bytes_image = 0;
+
+    for(i = 0; i < avctx->height; i++) {
+
+      const uint16_t *src = (const uint16_t *) ptr; /* Get 2B of data from ptr */
+      uint16_t line_bytes = 0;
+
+      for(n = 0; n < avctx->width; n++) /* Write each pixel in a line */
+	{
+	  line_bytes += 2; //2 Bytes per color
+	  
+	  // RLE for concurrent pixels
+	  uint8_t pix_count = 1;
+	  while (pix_count < 255 && n < avctx->width - 1 && (src[n] & 0xF7CE) == (src[n + 1] & 0xF7CE)) {
+	    
+	    pix_count++;
+	    n++;
+	  }
+	  line_bytes += 1;
+	  
+	}
+      // Append 3 bytes of 0 to signify end of line
+      line_bytes += 3;
+      
+	pad_bytes_per_row = (4 - line_bytes) & 3;
+	n_bytes_image += line_bytes + pad_bytes_per_row;
+        ptr -= p->linesize[0]; // Go up one line of the height
+    }
 
     // Cool file header encoding
 #define SIZE_COOLFILEHEADER 10
@@ -48,6 +77,7 @@ FF_ENABLE_DEPRECATION_WARNINGS
     hsize = SIZE_COOLFILEHEADER + SIZE_COOLINFOHEADER + (pal_entries << 2);
     n_bytes = n_bytes_image + hsize;
 
+    //Allocate the data for the image
     if ((ret = ff_alloc_packet2(avctx, pkt, n_bytes, 0)) < 0)
         return ret;
 
@@ -71,21 +101,43 @@ FF_ENABLE_DEPRECATION_WARNINGS
     // Grab FIRST DATA IN P for the LAST ROW IN IMAGE, shift BUFFER to just beyond header
     ptr = p->data[0] + (avctx->height - 1) * p->linesize[0];
     buf = pkt->data + hsize;
+    n_bytes_image = 0;
 
     for(i = 0; i < avctx->height; i++) {
 
       const uint16_t *src = (const uint16_t *) ptr; /* Get 2B of data from ptr */
-      uint16_t *dst = (uint16_t *) buf; /* Get destination to write to buffer */
+      uint16_t line_bytes = 0;
 
       for(n = 0; n < avctx->width; n++) /* Write each pixel in a line */
-	AV_WL16(dst + n, src[n]);
+	{
+	  line_bytes += 2; //2 Bytes per color
+	  bytestream_put_le16(&buf, src[n]);
+	  
+	  // RLE for concurrent pixels
+	  uint8_t pix_count = 1;
+	  while (pix_count < 255 && n < avctx->width - 1 && (src[n] & 0xF7CE) == (src[n + 1] & 0xF7CE)) {
+	    pix_count++;
+	    n++;
+	    av_log(NULL, AV_LOG_INFO, "Copy pixel hit\n");
+	  }
 
-        buf += n_bytes_per_row;
+	  bytestream_put_byte(&buf, pix_count); //Write total occurances for the color
+	  line_bytes += 1;
+	  
+	}
+      // Append 3 bytes of 0 to signify end of line
+      line_bytes += 3;
+      bytestream_put_le16(&buf, 0x0000);
+      bytestream_put_byte(&buf, 0x00);
+      
+	pad_bytes_per_row = (4 - line_bytes) & 3;
         memset(buf, 0, pad_bytes_per_row);
         buf += pad_bytes_per_row;
         ptr -= p->linesize[0]; // Go up one line of the height
     }
+    
 
+    
     pkt->flags |= AV_PKT_FLAG_KEY;
     *got_packet = 1;
     return 0;
@@ -105,3 +157,5 @@ AVCodec ff_cool_encoder = {
 	AV_PIX_FMT_NONE
   },
 };
+
+
