@@ -16,7 +16,7 @@ static const uint32_t rgb565_masks[]  = { 0xF800, 0x07E0, 0x001F };
 
 static av_cold int cool_encode_init(AVCodecContext *avctx){
 
-  //For use with RGB 555 or 565
+  //For use with RGB 555
     avctx->bits_per_coded_sample = 16;
     return 0;
 }
@@ -53,18 +53,16 @@ FF_ENABLE_DEPRECATION_WARNINGS
 	{
 	  line_bytes += 2; //2 Bytes per color
 	  
-	  // RLE for concurrent pixels
-	  uint8_t pix_count = 1;
-	  while (pix_count < 255 && n < avctx->width - 1 && (src[n] & 0xF7CE) == (src[n + 1] & 0xF7CE)) {
-	    
-	    pix_count++;
+	  // Single repeated pixel
+	  int pix_rep = 1;
+	  while (pix_rep < 16 && n < avctx->width - 1 && (src[n] & 0xF79E) == (src[n + 1] & 0xF79E)) {
 	    n++;
+	    pix_rep++;
 	  }
-	  line_bytes += 1;
 	  
 	}
       // Append 3 bytes of 0 to signify end of line
-      line_bytes += 3;
+      line_bytes += 2;
       
 	pad_bytes_per_row = (4 - line_bytes) & 3;
 	n_bytes_image += line_bytes + pad_bytes_per_row;
@@ -111,24 +109,24 @@ FF_ENABLE_DEPRECATION_WARNINGS
       for(n = 0; n < avctx->width; n++) /* Write each pixel in a line */
 	{
 	  line_bytes += 2; //2 Bytes per color
-	  bytestream_put_le16(&buf, src[n]);
-	  
-	  // RLE for concurrent pixels
-	  uint8_t pix_count = 1;
-	  while (pix_count < 255 && n < avctx->width - 1 && (src[n] & 0xF7CE) == (src[n + 1] & 0xF7CE)) {
-	    pix_count++;
-	    n++;
+
+	  int pix_rep = 1;
+	   while (pix_rep < 16 && n < avctx->width - 1 && (src[n] & 0xF79E) == (src[n + 1] & 0xF79E)) {
+	     n++;
+	     pix_rep++;
 	    av_log(NULL, AV_LOG_INFO, "Copy pixel hit\n");
 	  }
 
-	  bytestream_put_byte(&buf, pix_count); //Write total occurances for the color
-	  line_bytes += 1;
-	  
+	   uint16_t data = 0x0000;
+	   data += (src[n] & 0xF000); //4 bit Red
+	   data += (src[n] & 0x780) << 1; //4 bit green
+	   data += (src[n] & 0x001E) << 3; //4 bit blue
+	   data += pix_rep;                // 4 bit repeat pixel
+	  bytestream_put_le16(&buf, data );
 	}
       // Append 3 bytes of 0 to signify end of line
-      line_bytes += 3;
+      line_bytes += 2;
       bytestream_put_le16(&buf, 0x0000);
-      bytestream_put_byte(&buf, 0x00);
       
 	pad_bytes_per_row = (4 - line_bytes) & 3;
         memset(buf, 0, pad_bytes_per_row);
