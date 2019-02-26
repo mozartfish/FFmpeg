@@ -24,7 +24,7 @@ static int cool_decode_frame(AVCodecContext *avctx,
     unsigned int depth;
     BiCompression comp;
     unsigned int ihsize;
-    int i, j, n, linesize, ret;
+    int i, linesize, ret;
     uint8_t *ptr;
     int dsize;
     const uint8_t *buf0 = buf;
@@ -110,20 +110,6 @@ static int cool_decode_frame(AVCodecContext *avctx,
     buf   = buf0 + hsize; /* Move buffer to just beyond the header */
     dsize = buf_size - hsize; /* data size */
 
-    /* Line size in file multiple of 4 */
-    //  n = ((avctx->width * depth + 31) / 8) & ~3;
-
-
-    /* if (n * avctx->height > dsize && comp != COOL_RLE4 && comp != COOL_RLE8) {
-        n = (avctx->width * depth + 7) / 8;
-        if (n * avctx->height > dsize) {
-            av_log(avctx, AV_LOG_ERROR, "not enough data (%d < %d)\n",
-                   dsize, n * avctx->height);
-            return AVERROR_INVALIDDATA;
-        }
-        av_log(avctx, AV_LOG_ERROR, "data size too small, assuming missing line alignment\n");
-	} */
-
     if (height > 0) {
         ptr      = p->data[0] + (avctx->height - 1) * p->linesize[0];
         linesize = -p->linesize[0];
@@ -131,10 +117,9 @@ static int cool_decode_frame(AVCodecContext *avctx,
         ptr      = p->data[0];
         linesize = p->linesize[0];
     }
-
-    
-    av_log(NULL, AV_LOG_INFO, "Hello above build");
         
+
+    /* Write the data to the buffer */
             for (i = 0; i < avctx->height; i++) {
                 uint16_t src = bytestream_get_le16(&buf);
                 uint16_t *dst       = (uint16_t *) ptr;
@@ -147,16 +132,16 @@ static int cool_decode_frame(AVCodecContext *avctx,
 
 		  for (uint16_t pix_rep = (src & 0x000F); pix_rep > 0; pix_rep--)
 		    {
-		      av_log(NULL, AV_LOG_INFO, "Hello in loop \n");
                     *dst++ = av_le2ne16(rgb);
 		    }
 
 		  src = bytestream_get_le16(&buf);
 		  bytes_read += 2;
 		}
+
 		if (bytes_read % 4 != 0)
 		  bytestream_get_le16(&buf);
-		// buf += ((pix_count_line * depth + 31) / 8) & ~3;
+
                 ptr += linesize;
             }
             
