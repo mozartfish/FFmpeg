@@ -10,7 +10,6 @@
 #include "bytestream.h"
 #include "cool.h"
 #include "internal.h"
-#include "msrledec.h"
 
 static int cool_decode_frame(AVCodecContext *avctx,
                             void *data, int *got_frame,
