@@ -14,6 +14,9 @@
 static const uint32_t monoblack_pal[] = { 0x000000, 0xFFFFFF };
 static const uint32_t rgb565_masks[]  = { 0xF800, 0x07E0, 0x001F };
 
+/*
+  Initializes parts of the encoder before encoding the frame
+ */
 static av_cold int cool_encode_init(AVCodecContext *avctx){
 
   //For use with RGB 555
@@ -27,7 +30,7 @@ static int cool_encode_frame(AVCodecContext *avctx, AVPacket *pkt,
     const AVFrame * const p = pict;
     int n_bytes_image, n_bytes, i, n, hsize, ret;
     const uint32_t *pal = rgb565_masks;
-    int pad_bytes_per_row, pal_entries = 3, compression = COOL_BITFIELDS;
+    int pad_bytes_per_row, pal_entries = 3, compression = COOL_RLE16;
     int bit_count = avctx->bits_per_coded_sample;
     uint8_t *ptr, *buf;
 
@@ -39,7 +42,7 @@ FF_ENABLE_DEPRECATION_WARNINGS
 #endif
   
 
- // BMP files are bottom-to-top so we start from the end...
+ // COOL files are bottom-to-top so we start from the end...
     // Grab FIRST DATA IN P for the LAST ROW IN IMAGE, shift BUFFER to just beyond header
     ptr = p->data[0] + (avctx->height - 1) * p->linesize[0];
     n_bytes_image = 0;
@@ -64,10 +67,19 @@ FF_ENABLE_DEPRECATION_WARNINGS
       // Append 3 bytes of 0 to signify end of line
       line_bytes += 2;
       
-	pad_bytes_per_row = (4 - line_bytes) & 3;
-	n_bytes_image += line_bytes + pad_bytes_per_row;
-        ptr -= p->linesize[0]; // Go up one line of the height
+      pad_bytes_per_row = (4 - line_bytes) & 3;
+      n_bytes_image += line_bytes + pad_bytes_per_row;
+      ptr -= p->linesize[0]; // Go up one line of the height
     }
+
+    // Switch to RGB8 if the size is greater than 1.5 bytes per pixel
+    if (n_bytes_image / (avctx->height * (avctx->width + 2.0) * 1.0) > 1.5) 
+      {
+	avctx->bits_per_coded_sample = 8;
+	compression = COOL_RGB8;
+	n_bytes_image = avctx->height * (avctx->width + ((4 - avctx->width) & 3));
+	
+      }
 
     // Cool file header encoding
 #define SIZE_COOLFILEHEADER 10
@@ -95,53 +107,70 @@ FF_ENABLE_DEPRECATION_WARNINGS
     for (i = 0; i < pal_entries; i++)
         bytestream_put_le32(&buf, pal[i] & 0xFFFFFF);
 
-    // BMP files are bottom-to-top so we start from the end...
+    // Cool files are bottom-to-top so we start from the end...
     // Grab FIRST DATA IN P for the LAST ROW IN IMAGE, shift BUFFER to just beyond header
     ptr = p->data[0] + (avctx->height - 1) * p->linesize[0];
     buf = pkt->data + hsize;
-    n_bytes_image = 0;
 
-    for(i = 0; i < avctx->height; i++) {
+    // Encode the image
+    if (compression == COOL_RLE16)
+      for(i = 0; i < avctx->height; i++) {
+	
+	const uint16_t *src = (const uint16_t *) ptr; /* Get 2B of data from ptr */
+	uint16_t line_bytes = 0;
+	
+	for(n = 0; n < avctx->width; n++) /* Write each pixel in a line */
+	  {
+	    line_bytes += 2; //2 Bytes per color
 
-      const uint16_t *src = (const uint16_t *) ptr; /* Get 2B of data from ptr */
-      uint16_t line_bytes = 0;
+	    // Check for color repetitions to compress
+	    uint16_t pix_rep = 1;
+	    while (pix_rep < 15 && n < avctx->width - 1 && (src[n] & 0xF79E) == (src[n + 1] & 0xF79E)) {
+	      n++;
+	      pix_rep++;
+	    }
 
-      for(n = 0; n < avctx->width; n++) /* Write each pixel in a line */
-	{
-	  line_bytes += 2; //2 Bytes per color
-
-	  uint16_t pix_rep = 1;
-	   while (pix_rep < 15 && n < avctx->width - 1 && (src[n] & 0xF79E) == (src[n + 1] & 0xF79E)) {
-	     n++;
-	     pix_rep++;
+	    uint16_t data = 0x0000;
+	    data += (src[n] & 0xF000); //4 bit Red
+	    data += (src[n] & 0x0780) << 1; //4 bit green
+	    data += (src[n] & 0x001E) << 3; //4 bit blue
+	    data += (pix_rep & 0x000F);                // 4 bit repeat pixel
+	    bytestream_put_le16(&buf, data);
 	  }
-
-	   uint16_t data = 0x0000;
-	   data += (src[n] & 0xF000); //4 bit Red
-	   data += (src[n] & 0x0780) << 1; //4 bit green
-	   data += (src[n] & 0x001E) << 3; //4 bit blue
-	   data += (pix_rep & 0x000F);                // 4 bit repeat pixel
-	  bytestream_put_le16(&buf, data);
-	}
-      // Append 3 bytes of 0 to signify end of line
-      line_bytes += 2;
-      bytestream_put_le16(&buf, 0x0000);
-      
+	// Append 3 bytes of 0 to signify end of line
+	line_bytes += 2;
+	bytestream_put_le16(&buf, 0x0000);
+	
 	pad_bytes_per_row = (4 - line_bytes) & 3;
-        memset(buf, 0, pad_bytes_per_row);
-        buf += pad_bytes_per_row;
+	memset(buf, 0, pad_bytes_per_row);
+	buf += pad_bytes_per_row;
         ptr -= p->linesize[0]; // Go up one line of the height
-    }
+      }
     
-
+    else 
+      for(i = 0; i < avctx->height; i++) {
+	uint16_t line_bytes =  avctx->width;
+	  
+	// Append 2 bytes of 0 to signify end of line
+	memcpy(buf, ptr, line_bytes);
+	buf += line_bytes;
+	
+	pad_bytes_per_row = (4 - line_bytes) & 3;
+	memset(buf, 0, pad_bytes_per_row);
+	buf += pad_bytes_per_row;
+        ptr -= p->linesize[0]; // Go up one line of the height
+      }
     
+    // Required end stuff for encoding
     pkt->flags |= AV_PKT_FLAG_KEY;
     *got_packet = 1;
     return 0;
 }
 
 
-
+/*
+  Struct containing all necessary 
+ */
 AVCodec ff_cool_encoder = {
     .name           = "cool",
     .long_name      = NULL_IF_CONFIG_SMALL("COOL image (CS 3505 Spring 2019)"),
@@ -151,6 +180,7 @@ AVCodec ff_cool_encoder = {
     .encode2        = cool_encode_frame,
     .pix_fmts       = (const enum AVPixelFormat[]){
         AV_PIX_FMT_RGB565,
+	AV_PIX_FMT_RGB8,
 	AV_PIX_FMT_NONE
   },
 };

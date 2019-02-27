@@ -11,6 +11,9 @@
 #include "cool.h"
 #include "internal.h"
 
+/*
+  Decodes a cool image
+ */
 static int cool_decode_frame(AVCodecContext *avctx,
                             void *data, int *got_frame,
                             AVPacket *avpkt)
@@ -29,6 +32,7 @@ static int cool_decode_frame(AVCodecContext *avctx,
     const uint8_t *buf0 = buf;
     GetByteContext gb;
 
+    // Make sure buffer has enough data
     if (buf_size < 14) {
         av_log(avctx, AV_LOG_ERROR, "buf size too small (%d)\n", buf_size);
         return AVERROR_INVALIDDATA;
@@ -37,13 +41,14 @@ static int cool_decode_frame(AVCodecContext *avctx,
 
     /* Start header read */
 
-
+    // Get header identifier
     if (bytestream_get_byte(&buf) != 'C' ||
         bytestream_get_byte(&buf) != 'O') {
         av_log(avctx, AV_LOG_ERROR, "bad magic number\n");
         return AVERROR_INVALIDDATA;
     }
 
+    // Get file size
     fsize = bytestream_get_le32(&buf);
     if (buf_size < fsize) {
         av_log(avctx, AV_LOG_ERROR, "not enough data (%d < %u), trying to decode anyway\n",
@@ -84,8 +89,8 @@ static int cool_decode_frame(AVCodecContext *avctx,
 
     comp = bytestream_get_le32(&buf); /* Pixel array compression */
 
-    if (comp != COOL_RGB && comp != COOL_BITFIELDS && comp != COOL_RLE4 &&
-        comp != COOL_RLE8) {
+    // Make sure compression type is correct
+    if (comp != COOL_RGB8 && comp != COOL_RLE16) {
         av_log(avctx, AV_LOG_ERROR, "COOL coding %d not supported\n", comp);
         return AVERROR_INVALIDDATA;
     }
@@ -99,7 +104,10 @@ static int cool_decode_frame(AVCodecContext *avctx,
         return AVERROR_INVALIDDATA;
     }
 
-    avctx->pix_fmt = AV_PIX_FMT_RGB565; /* Set pixel format to RGB 565 */
+    if (comp == COOL_RLE16)
+      avctx->pix_fmt = AV_PIX_FMT_RGB565; /* Set pixel format to RGB 565 */
+    else
+      avctx->pix_fmt = AV_PIX_FMT_RGB8; /* Set pixel format to RGB 8 */
 
     if ((ret = ff_get_buffer(avctx, p, 0)) < 0)
         return ret;
@@ -119,6 +127,7 @@ static int cool_decode_frame(AVCodecContext *avctx,
         
 
     /* Write the data to the buffer */
+    if (comp == COOL_RLE16)
             for (i = 0; i < avctx->height; i++) {
                 uint16_t src = bytestream_get_le16(&buf);
                 uint16_t *dst       = (uint16_t *) ptr;
@@ -143,7 +152,22 @@ static int cool_decode_frame(AVCodecContext *avctx,
 
                 ptr += linesize;
             }
-            
+    
+    else
+      for (i = 0; i < avctx->height; i++) {
+                uint8_t *dst       = ptr;
+		uint64_t bytes_read = 1;
+
+		for (int j = 0; j < avctx->width; j++)
+		{
+		  *dst++ = bytestream_get_byte(&buf);
+		}
+
+		for (int pad = (4 - avctx->width) & 3; pad != 0; pad --)
+		  buf++;
+
+                ptr += linesize;
+            }
     
 
     *got_frame = 1;

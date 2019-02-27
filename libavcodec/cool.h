@@ -13,10 +13,8 @@
 #include "avcodec.h"
 
 typedef enum {
-    COOL_RGB         =0,
-    COOL_RLE8        =1,
-    COOL_RLE4        =2,
-    COOL_BITFIELDS   =3,
+    COOL_RGB8        =0,
+    COOL_RLE16       =1,
 } BiCompression;
 
 #endif
