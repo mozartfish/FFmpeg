@@ -24,6 +24,9 @@ static av_cold int cool_encode_init(AVCodecContext *avctx){
     return 0;
 }
 
+/*
+  Encode a frame to make a .cool file
+ */
 static int cool_encode_frame(AVCodecContext *avctx, AVPacket *pkt,
                             const AVFrame *pict, int *got_packet)
 {
@@ -47,6 +50,7 @@ FF_ENABLE_DEPRECATION_WARNINGS
     ptr = p->data[0] + (avctx->height - 1) * p->linesize[0];
     n_bytes_image = 0;
 
+    // Find repititions for the RGB565 encoding to determine how to compress
     for(i = 0; i < avctx->height; i++) {
 
       const uint16_t *src = (const uint16_t *) ptr; /* Get 2B of data from ptr */
@@ -64,9 +68,10 @@ FF_ENABLE_DEPRECATION_WARNINGS
 	  }
 	  
 	}
-      // Append 3 bytes of 0 to signify end of line
+      // 2 Byte of 0 used as terminator
       line_bytes += 2;
       
+      // Add required padding
       pad_bytes_per_row = (4 - line_bytes) & 3;
       n_bytes_image += line_bytes + pad_bytes_per_row;
       ptr -= p->linesize[0]; // Go up one line of the height
@@ -92,7 +97,7 @@ FF_ENABLE_DEPRECATION_WARNINGS
         return ret;
 
     buf = pkt->data;
-    bytestream_put_byte(&buf, 'C');                   //COOL header
+    bytestream_put_byte(&buf, 'C');                   //COOL header identifier
     bytestream_put_byte(&buf, 'O');                   
     bytestream_put_le32(&buf, n_bytes);               // COOL FILE SIZE
     bytestream_put_le32(&buf, hsize);                 // COOLFILEHEADER HEADER OFFSET
@@ -101,7 +106,7 @@ FF_ENABLE_DEPRECATION_WARNINGS
     bytestream_put_le32(&buf, avctx->height);         // COOLINFOHEADER HEIGHT
     bytestream_put_le16(&buf, 1);                     // Color planes 
     bytestream_put_le16(&buf, bit_count);             // Bits per pixel
-    bytestream_put_le32(&buf, compression);           // Pixel array compression
+    bytestream_put_le32(&buf, compression);           // Pixel compression type
 
     /* Add mask data to header */
     for (i = 0; i < pal_entries; i++)
@@ -137,24 +142,27 @@ FF_ENABLE_DEPRECATION_WARNINGS
 	    data += (pix_rep & 0x000F);                // 4 bit repeat pixel
 	    bytestream_put_le16(&buf, data);
 	  }
-	// Append 3 bytes of 0 to signify end of line
+	// Append 2 bytes of 0 to signify end of line
 	line_bytes += 2;
 	bytestream_put_le16(&buf, 0x0000);
 	
+	// Add padding
 	pad_bytes_per_row = (4 - line_bytes) & 3;
 	memset(buf, 0, pad_bytes_per_row);
 	buf += pad_bytes_per_row;
         ptr -= p->linesize[0]; // Go up one line of the height
       }
     
+    // Encode as RGB8
     else 
       for(i = 0; i < avctx->height; i++) {
 	uint16_t line_bytes =  avctx->width;
 	  
-	// Append 2 bytes of 0 to signify end of line
+	// Add the rgb8 values to ptr
 	memcpy(buf, ptr, line_bytes);
 	buf += line_bytes;
 	
+	// Add padding
 	pad_bytes_per_row = (4 - line_bytes) & 3;
 	memset(buf, 0, pad_bytes_per_row);
 	buf += pad_bytes_per_row;

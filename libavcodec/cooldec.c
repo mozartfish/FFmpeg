@@ -56,6 +56,7 @@ static int cool_decode_frame(AVCodecContext *avctx,
         fsize = buf_size;
     }
 
+    // Get header sizes
     hsize  = bytestream_get_le32(&buf); /* header size */
     ihsize = bytestream_get_le32(&buf); /* info header size */
     if (ihsize + 14LL > hsize) {
@@ -79,7 +80,7 @@ static int cool_decode_frame(AVCodecContext *avctx,
     height = bytestream_get_le32(&buf); /* Get width */
     
 
-    /* planes */
+    /* Color planes */
     if (bytestream_get_le16(&buf) != 1) {
         av_log(avctx, AV_LOG_ERROR, "invalid COOL header\n");
         return AVERROR_INVALIDDATA;
@@ -104,6 +105,7 @@ static int cool_decode_frame(AVCodecContext *avctx,
         return AVERROR_INVALIDDATA;
     }
 
+    // Check what type of compression was used
     if (comp == COOL_RLE16)
       avctx->pix_fmt = AV_PIX_FMT_RGB565; /* Set pixel format to RGB 565 */
     else
@@ -127,32 +129,38 @@ static int cool_decode_frame(AVCodecContext *avctx,
         
 
     /* Write the data to the buffer */
+
+    // Get data from the RGB444 + 4 bit repeat
     if (comp == COOL_RLE16)
             for (i = 0; i < avctx->height; i++) {
                 uint16_t src = bytestream_get_le16(&buf);
                 uint16_t *dst       = (uint16_t *) ptr;
 		uint64_t bytes_read = 2;
 
+		// Decode a line until terminator is reached
                 while(src != 0x0000) {
 
 		  uint16_t rgb = (src & 0xF000) + ((src & 0x0F00) >> 1) + ((src & 0x00F0) >> 2);
 		  
-
+		  // Get a pixel for the sum of the repeat bits
 		  for (uint16_t pix_rep = (src & 0x000F); pix_rep > 0; pix_rep--)
 		    {
                     *dst++ = av_le2ne16(rgb);
 		    }
 
+		  // Get the next value
 		  src = bytestream_get_le16(&buf);
 		  bytes_read += 2;
 		}
 
+		// Since compression is always divisible by two, get padding bits
 		if (bytes_read % 4 != 0)
 		  bytestream_get_le16(&buf);
 
                 ptr += linesize;
             }
     
+    // Get each byte of RGB8 to decode the image
     else
       for (i = 0; i < avctx->height; i++) {
                 uint8_t *dst       = ptr;
@@ -175,6 +183,9 @@ static int cool_decode_frame(AVCodecContext *avctx,
     return buf_size;
 }
 
+/*
+  Struct of necessary information for running the cool decoder
+ */
 AVCodec ff_cool_decoder = {
    .name           = "cool",
     .long_name      = NULL_IF_CONFIG_SMALL("COOL image (CS 3505 Spring 2019)"),
