@@ -77,8 +77,8 @@ FF_ENABLE_DEPRECATION_WARNINGS
       ptr -= p->linesize[0]; // Go up one line of the height
     }
 
-    // Switch to RGB8 if the size is greater than 1.5 bytes per pixel
-    if (n_bytes_image / (avctx->height * (avctx->width + 2.0) * 1.0) > 1.5) 
+    // Switch to RGB8 if the size is greater than 1.4 bytes per pixel
+    if (n_bytes_image / (avctx->height * (avctx->width + 2.0) * 1.0) > 1.4) 
       {
 	avctx->bits_per_coded_sample = 8;
 	compression = COOL_RGB8;
