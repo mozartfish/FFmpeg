@@ -11,3 +11,25 @@ Day 2 February 16, 2019
 -Completed the get started requirements for FFMPEG Part 2
 -Set up the framework for our .cool class and header file
 -Explored compression algorithms such as LZW etc.
+
+Day 3 February 23, 2019
+-We spent around 5 hours trying to understand how to the FFmpeg encoder and decoder worked 
+-We studied different image formats and decided to use the RGB16 format where we allocated about 
+2 bytes for each color
+-In addition to this we began studying the different compression algorithms that FFmpeg used including
+the DCT algorithm, Huffman Encoding, LZW, RLE and others. We eventually decided that we could not implement our own version
+of LZW because we would be allocating extra space for an array to look up the color values that we stored there. After finishing
+the Get Started Requirements we decided to use the BMP format of encoding and decoding as a starting point for our compression algorithm
+and image formatting
+
+Day 4 February 24, 2019
+-We spent around 5 hours trying to change our encoder and decoder into something that could work with the requirements specified by
+Professor Jensen. We decided to create our own header and then read in the data using get_bytes and uint16 for the byte data. 
+To save space, we decided to store the image using RGB 444 where the final four bits were used to specify whether or not a color repeats
+up to 15 times using the idea of keeping track of frequencies as described by the RLE algorithm. We spent the majority of the this day working on the encoder because figuring out how to include our compression algorithm with the RGB format we decided to use led to a lot of compile errors and bad image quality. Some of the test cases that we used include BMP, PNG and GIF.
+
+DAY 5 February 25, 2019
+-We spent around 5 hours trying to get the decoder working and discovered that we were reading in information wrong and that we should have been using a specific version of get_bytes. After we did this we got both our encoder and decoder working. We also continued experimenting with different media formats for this assignment.
+
+Day 6, February 27, 2019
+-After talking to Garin, we realized that our encoder and decoder would not work well for gradient images and text images. We decided if the file size was greater than 1.5 bytes per pixel, we would use the RGB8 format to keep the file size near 1.0 mb and 1.0 bytes per pixel.
